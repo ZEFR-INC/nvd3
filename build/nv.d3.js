@@ -1447,7 +1447,8 @@ Runs common initialize code on the svg before the chart builds
 */
 nv.utils.initSVG = function(svg) {
   svg.classed({'nvd3-svg':true});
-};nv.models.axis = function() {
+};
+nv.models.axis = function() {
   "use strict";
 
   //============================================================
@@ -4852,7 +4853,6 @@ nv.models.lineChart = function() {
         container.selectAll('.nv-noData').remove();
       }
 
-
       // Setup Scales
       x = lines.xScale();
       y = lines.yScale();
@@ -4872,6 +4872,16 @@ nv.models.lineChart = function() {
       g.select("rect")
         .attr("width",availableWidth)
         .attr("height",(availableHeight > 0) ? availableHeight : 0);
+
+      var postSeries;
+      //remove post marker series
+      //do this before legend gets drawn
+      data.some(function(series, index) {
+        if (series.key == 'Post Markers') {
+          postSeries = data.splice(index, 1)[0];
+          return true;
+        }
+      });
 
       // Legend
       if (showLegend) {
@@ -4921,6 +4931,27 @@ nv.models.lineChart = function() {
         .datum(data.filter(function(d) { return !d.disabled }));
 
       linesWrap.call(lines);
+
+      //draw post markers
+      //gotta do this after setting up the lines so that the scale is ready
+      if (postSeries) {
+        var markers = gEnter.append('g')
+        .attr('class', 'en-postMarkers')
+        .attr('width', availableWidth)
+        .attr('height', (availableHeight > 0) ? availableHeight : 0);
+        postSeries.values.forEach(function(markerData, index) {
+          markerData.x = new Date(markerData.x);
+          markers.append('g')
+          .attr('class', 'marker')
+          .attr('transform', 'translate(' + x(markerData.x.valueOf()) + ',0)')
+          .append('line')
+          .attr('y2', availableHeight)
+          .attr('x2', 0)
+          .attr('style', 'stroke: red');
+        });
+        //put markers back in so they will be there when update
+        data.push(postSeries);
+      }
 
       // Setup Axes
       if (showXAxis) {
@@ -7420,7 +7451,7 @@ nv.models.multiBarHorizontalChart = function() {
     , showLegend = true
     , showXAxis = true
     , showYAxis = true
-    , stacked = false
+    , stacked = true
     , tooltips = true
     , tooltip = function(key, x, y, e, graph) {
       return '<h3>' + key + ' - ' + x + '</h3>' +
@@ -7626,27 +7657,25 @@ nv.models.multiBarHorizontalChart = function() {
           .ticks( nv.utils.calcTicksY(availableHeight/24, data) )
           .tickSize(-availableWidth, 0);
 
-        //label wrapping fix based on mike bostock's solution
-        //http://bl.ocks.org/mbostock/7555321
         g.select('.nv-x.nv-axis').call(xAxis).selectAll('.tick text').call(function(selection) {
           selection.each(function() {
             var text = d3.select(this),
-              words = text.text().split(/\s+/).reverse(),
-              word,
-              line = [],
-              lineNumber = 0,
-              lineHeight = 1.1, // ems
-              y = text.attr("y"),
-              dy = parseFloat(text.attr("dy")),
-              tspan = text.text(null).append("tspan").attr("x", -5).attr("y", y).attr("dy", dy + "em");
+                words = text.text().split(/\s+/).reverse(),
+                word,
+                line = [],
+                lineNumber = 0,
+                lineHeight = 1.1, // ems
+                y = text.attr("y"),
+                dy = parseFloat(text.attr("dy")),
+                tspan = text.text(null).append("tspan").attr("x", -5).attr("y", y).attr("dy", dy + "em");
             while (word = words.pop()) {
               line.push(word);
               tspan.text(line.join(" "));
               if (tspan.node().getComputedTextLength() > margin.right) {
-              line.pop();
-              tspan.text(line.join(" "));
-              line = [word];
-              tspan = text.append("tspan").attr("x", -5).attr("y", y).attr("dy", ++lineNumber * lineHeight + dy + "em").text(word);
+                line.pop();
+                tspan.text(line.join(" "));
+                line = [word];
+                tspan = text.append("tspan").attr("x", -5).attr("y", y).attr("dy", ++lineNumber * lineHeight + dy + "em").text(word);
               }
             }
             //offset is height / 4 since position is already displaced by height / 2
@@ -7656,6 +7685,9 @@ nv.models.multiBarHorizontalChart = function() {
             }
           });
         });
+
+        //var xTicks = g.select('.nv-x.nv-axis').selectAll('g');
+        //xTicks.selectAll('line, text');
       }
 
       if (showYAxis) {
