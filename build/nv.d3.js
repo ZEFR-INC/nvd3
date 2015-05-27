@@ -515,6 +515,27 @@ nv.nearestValueIndex = function (values, searchVal, threshold) {
         }
       });
 
+      //EDIT
+      //add info about a post to tooltip when hover over a post icon
+      if (d.postMarkerTooltip) {
+        var tfootEnter = tbodyEnter.selectAll("tfoot")
+          .data([d])
+          .enter()
+          .append("tfoot");
+
+        tfootEnter.append("tr")
+          .append("td")
+          .attr("colspan",3)
+          .append("strong")
+          .html(function(p) { return p.postMarkerTooltip.label });
+
+        tfootEnter.append("tr")
+          .append("td")
+          .attr("colspan",3)
+          .html(function(p) { return d3.time.format('%x %I %p')(p.postMarkerTooltip.postDate) });
+      }
+      //END EDIT
+
       var html = table.node().outerHTML;
       if (d.footer !== undefined)
         html += "<div class='footer'>" + d.footer + "</div>";
@@ -4297,6 +4318,7 @@ nv.models.ohlcBarChart = function() {
       var gEnter = wrap.enter().append('g').attr('class', 'nvd3 nv-legend').append('g');
       var g = wrap.select('g');
 
+
       wrap.attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
 
       var series = g.selectAll('.nv-series')
@@ -4415,12 +4437,22 @@ nv.models.ohlcBarChart = function() {
             return 'translate(' + xPositions[i % seriesPerRow] + ',' + (5 + Math.floor(i / seriesPerRow) * 20) + ')';
           });
 
+      var bg = g.insert('rect', 'g')
+        .attr('height', height)
+        .attr('width', legendWidth > 0 ? legendWidth : 0)
+        .attr('transform', 'translate(-10,-5)')
+        .style('fill', '#eee');
+
+        height = d3.select(this.parentNode.parentNode.parentNode).attr('height');
+        //console.log('height: ' + height);
+
         //position legend as far right as possible within the total width
         if (rightAlign) {
-          g.attr('transform', 'translate(' + (width - margin.right - legendWidth) + ',' + margin.top + ')');
+          g.attr('transform', 'translate(' + (width - margin.right - legendWidth) + ',' + (height - 50) + ')');
         }
         else {
-          g.attr('transform', 'translate(0' + ',' + margin.top + ')');
+          g.attr('transform', 'translate(0' + ',' + (height - 50) + ')');
+          //console.log(g.attr('transform'));
         }
 
         height = margin.top + margin.bottom + (Math.ceil(seriesWidths.length / seriesPerRow) * 20);
@@ -4575,7 +4607,7 @@ nv.models.line = function() {
         .append('rect');
 
       wrap.select('#nv-edge-clip-' + scatter.id() + ' rect')
-        .attr('width', availableWidth)
+        .attr('width', availableWidth > 0 ? availableWidth : 0)
         .attr('height', (availableHeight > 0) ? availableHeight : 0);
 
       g   .attr('clip-path', clipEdge ? 'url(#nv-edge-clip-' + scatter.id() + ')' : '');
@@ -4774,7 +4806,7 @@ nv.models.lineChart = function() {
 
   var renderWatch = nv.utils.renderWatch(dispatch, duration);
 
-  var stateGetter = function(data) {
+  var stateGetter = function(data) { 
     return function(){
       return {
         active: data.map(function(d) { return !d.disabled })
@@ -4868,11 +4900,13 @@ nv.models.lineChart = function() {
       gEnter.append('g').attr('class', 'nv-linesWrap');
       gEnter.append('g').attr('class', 'nv-legendWrap');
       gEnter.append('g').attr('class', 'nv-interactive');
+      gEnter.append('g').attr('class', 'en-postMarkers');
 
       g.select("rect")
-        .attr("width",availableWidth)
+        .attr("width", availableWidth > 0 ? availableWidth : 0)
         .attr("height",(availableHeight > 0) ? availableHeight : 0);
 
+      //EDIT
       var postSeries;
       //remove post marker series
       //do this before legend gets drawn
@@ -4882,6 +4916,7 @@ nv.models.lineChart = function() {
           return true;
         }
       });
+      //END EDIT
 
       // Legend
       if (showLegend) {
@@ -4932,26 +4967,48 @@ nv.models.lineChart = function() {
 
       linesWrap.call(lines);
 
+      //EDIT
       //draw post markers
       //gotta do this after setting up the lines so that the scale is ready
       if (postSeries) {
-        var markers = gEnter.append('g')
-        .attr('class', 'en-postMarkers')
-        .attr('width', availableWidth)
-        .attr('height', (availableHeight > 0) ? availableHeight : 0);
+        var markers;
+        if (d3.select('.en-postMarkers').size()) {
+          markers = d3.select('.en-postMarkers');
+          markers.selectAll('*').remove();
+        } else {
+          markers = gEnter.append('g')
+          .attr('class', 'en-postMarkers')
+          .attr('width', availableWidth)
+          .attr('height', (availableHeight > 0) ? availableHeight : 0);
+        }
+        var maxY = availableHeight - 16;
+        var minX = 0;
         postSeries.values.forEach(function(markerData, index) {
+          //if the series is disabled, return
+          var ret;
+          data.some(function(series) {
+            if ((series.postURLs.indexOf(markerData.postURL) > -1 || series.postURLs.indexOf('all') > -1) && series.disabled) ret = true;
+          });
+          if (ret) return;
           markerData.x = new Date(markerData.x);
-          markers.append('g')
+          //need to figure out the y value of the corresponding point on the corresponding stream
+          var markerX = Math.round(x(markerData.x) - 8 >= minX ? x(markerData.x) - 8 : minX);
+          var markerY = Math.round(y(markerData.y) - 8 <= maxY ? y(markerData.y) - 8 : maxY);
+          markerData.markerX = markerX;
+          markerData.markerY = markerY;
+          var transform = 'translate(' + markerX + ',' + markerY + ')';
+          var marker = markers.append('g')
           .attr('class', 'marker')
-          .attr('transform', 'translate(' + x(markerData.x.valueOf()) + ',0)')
-          .append('line')
-          .attr('y2', availableHeight)
-          .attr('x2', 0)
-          .attr('style', 'stroke: red');
+          .attr('transform', transform)
+          .append('svg:image')
+          .attr('height', 16)
+          .attr('width', 16)
+          .attr('xlink:href', '/admin/images/icons16/' + markerData.network + '.png');
         });
         //put markers back in so they will be there when update
         data.push(postSeries);
       }
+      //END EDIT
 
       // Setup Axes
       if (showXAxis) {
@@ -5017,6 +5074,17 @@ nv.models.lineChart = function() {
           if (indexToHighlight !== null)
             allData[indexToHighlight].highlight = true;
         }
+        //EDIT
+        var postMarkerTooltip;
+        postSeries.values.forEach(function(markerData) {
+          if (e.mouseX >= markerData.markerX && e.mouseX <= markerData.markerX + 16 && e.mouseY >= markerData.markerY && e.mouseY <= markerData.markerY + 16) {
+            postMarkerTooltip = {
+              label: markerData.label,
+              postDate: markerData.x
+            };
+          }
+        });
+        //END EDIT
 
         var xValue = xAxis.tickFormat()(chart.x()(singlePoint,pointIndex));
         interactiveLayer.tooltip
@@ -5029,7 +5097,8 @@ nv.models.lineChart = function() {
           .data(
           {
             value: xValue,
-            series: allData
+            series: allData,
+            postMarkerTooltip: postMarkerTooltip
           }
         )();
 
@@ -6428,8 +6497,8 @@ nv.models.multiBar = function() {
         .attr('id', 'nv-edge-clip-' + id)
         .append('rect');
       wrap.select('#nv-edge-clip-' + id + ' rect')
-        .attr('width', availableWidth)
-        .attr('height', availableHeight);
+        .attr('width', availableWidth > 0 ? availableWidth : 0)
+        .attr('height', availableHeight > 0 ? availableHeight : 0);
 
       g.attr('clip-path', clipEdge ? 'url(#nv-edge-clip-' + id + ')' : '');
 
@@ -7601,10 +7670,11 @@ nv.models.multiBarHorizontalChart = function() {
       if (showLegend) {
         legend.width(availableWidth - controlWidth());
 
-        if (multibar.barColor())
+        //COMMENTED
+        /*if (multibar.barColor())
           data.forEach(function(series,i) {
             series.color = d3.rgb('#ccc').darker(i * 1.5).toString();
-          });
+          });*/
 
         g.select('.nv-legendWrap')
           .datum(data)
@@ -7657,6 +7727,10 @@ nv.models.multiBarHorizontalChart = function() {
           .ticks( nv.utils.calcTicksY(availableHeight/24, data) )
           .tickSize(-availableWidth, 0);
 
+        //based on 'wrapping long labels' by mike bostock
+        //http://bl.ocks.org/mbostock/7555321
+        console.log('x axis');
+
         g.select('.nv-x.nv-axis').call(xAxis).selectAll('.tick text').call(function(selection) {
           selection.each(function() {
             var text = d3.select(this),
@@ -7667,7 +7741,7 @@ nv.models.multiBarHorizontalChart = function() {
                 lineHeight = 1.1, // ems
                 y = text.attr("y"),
                 dy = parseFloat(text.attr("dy")),
-                tspan = text.text(null).append("tspan").attr("x", -5).attr("y", y).attr("dy", dy + "em");
+                tspan = text.text(null).append("tspan").attr("x", -5).attr("y", 0).attr("dy", dy + "em");
             while (word = words.pop()) {
               line.push(word);
               tspan.text(line.join(" "));
@@ -7675,7 +7749,7 @@ nv.models.multiBarHorizontalChart = function() {
                 line.pop();
                 tspan.text(line.join(" "));
                 line = [word];
-                tspan = text.append("tspan").attr("x", -5).attr("y", y).attr("dy", ++lineNumber * lineHeight + dy + "em").text(word);
+                tspan = text.append("tspan").attr("x", -5).attr("y", 0).attr("dy", ++lineNumber * lineHeight + dy + "em").text(word);
               }
             }
             //offset is height / 4 since position is already displaced by height / 2
@@ -9429,7 +9503,7 @@ nv.models.scatter = function() {
         .append('rect');
 
       wrap.select('#nv-edge-clip-' + id + ' rect')
-        .attr('width', availableWidth)
+        .attr('width', availableWidth > 0 ? availableWidth : 0)
         .attr('height', (availableHeight > 0) ? availableHeight : 0);
 
       g.attr('clip-path', clipEdge ? 'url(#nv-edge-clip-' + id + ')' : '');
