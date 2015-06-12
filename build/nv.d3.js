@@ -5003,7 +5003,7 @@ nv.models.lineChart = function() {
           .append('svg:image')
           .attr('height', 16)
           .attr('width', 16)
-          .attr('xlink:href', '/admin/images/icons16/' + markerData.network + '.png');
+          .attr('xlink:href', '/admin/images/icons16/' + markerData.network.toLowerCase() + '.png');
         });
         //put markers back in so they will be there when update
         data.push(postSeries);
@@ -7729,7 +7729,7 @@ nv.models.multiBarHorizontalChart = function() {
 
         //based on 'wrapping long labels' by mike bostock
         //http://bl.ocks.org/mbostock/7555321
-        console.log('x axis');
+        //console.log('x axis');
 
         g.select('.nv-x.nv-axis').call(xAxis).selectAll('.tick text').call(function(selection) {
           selection.each(function() {
