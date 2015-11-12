@@ -9,6 +9,7 @@ nv.models.sparkline = function() {
     var margin = {top: 2, right: 0, bottom: 2, left: 0}
         , width = 400
         , height = 32
+        , container = null
         , animate = true
         , x = d3.scale.linear()
         , y = d3.scale.linear()
@@ -19,13 +20,22 @@ nv.models.sparkline = function() {
         , yDomain
         , xRange
         , yRange
+        , dispatch = d3.dispatch('renderEnd')
         ;
 
+    //============================================================
+    // Private Variables
+    //------------------------------------------------------------
+
+    var renderWatch = nv.utils.renderWatch(dispatch);
+    
     function chart(selection) {
+        renderWatch.reset();
         selection.each(function(data) {
             var availableWidth = width - margin.left - margin.right,
-                availableHeight = height - margin.top - margin.bottom,
-                container = d3.select(this);
+                availableHeight = height - margin.top - margin.bottom;
+
+            container = d3.select(this);
             nv.utils.initSVG(container);
 
             // Setup Scales
@@ -83,7 +93,8 @@ nv.models.sparkline = function() {
                             getY(d, d.pointIndex) == y.domain()[0] ? 'nv-point nv-minValue' : 'nv-point nv-maxValue'
                 });
         });
-
+        
+        renderWatch.renderEnd('sparkline immediate');
         return chart;
     }
 
@@ -121,6 +132,7 @@ nv.models.sparkline = function() {
         }}
     });
 
+    chart.dispatch = dispatch;
     nv.utils.initOptions(chart);
     return chart;
 };
